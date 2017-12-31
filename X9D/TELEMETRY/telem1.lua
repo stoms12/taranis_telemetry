@@ -28,11 +28,12 @@ local max_rssi = 90
 local min_rssi = 45
 
 -- SWITCHES
-local SW_FS = 'sf'
+local SW_FS = 'sc'
 local SW_ARM = 'sd'
-local SW_FMODE = 'sc'
-local SW_BBOX = 'sa'
-local SW_BEEPR = 'se'
+local SW_FMODE = 'sb'
+local SW_BBOX = 'sg'
+local SW_TURT = 'se'
+local SW_BEEPR = 'sf'
 
 -- Data Sources
 local DS_VFAS = 'VFAS'
@@ -40,6 +41,7 @@ local DS_CELL = 'A4'
 local DS_CELL_MIN = 'A4-'
 local DS_RSSI = 'RSSI'
 local DS_RSSI_MIN = 'RSSI-'
+local DS_FUEL = 'Fuel'
 
 
 local function drawGrid(lines, cols)
@@ -65,15 +67,22 @@ local function drawBatt()
   local cell = getValue(DS_CELL)
   local cell_count = math.floor(batt/cell)
   -- Picture
-  lcd.drawPixmap(2, 2, "/SCRIPTS/BMP/batt.bmp")
+  lcd.drawPixmap(3, 1, "/SCRIPTS/BMP/batt.bmp")
   -- Calculate the size of the level rectangle and draw it
   local total_steps = 30 
   local range = max_batt - min_batt
   local step_size = range/total_steps
   local current_level = math.floor(total_steps - ((cell - min_batt) / step_size))
-  lcd.drawFilledRectangle(3, 10 + current_level, 26, 30 - current_level, SOLID)
+  lcd.drawFilledRectangle(4, 10 + current_level, 26, 30 - current_level, SOLID)
   -- Values
-  lcd.drawText(1, 45, round(cell, 4), DBLSIZE)
+  lcd.drawText(5, 41, round(cell, 4), MIDSIZE)
+    
+  if batt<10 then
+    lcd.drawText(5, 52, round(batt, 4),MIDSIZE)
+  else
+    lcd.drawText(5, 52, round(batt, 4),MIDSIZE)
+  end
+  
   -- Calculate and display the battery cell count (3S, 4S)
   if (cell_count > 0) then 
     lcd.drawText(grid_limit_left + 2, min_y + header_height + cell_height * 2 + 3, cell_count .. "S", DBLSIZE)
@@ -101,7 +110,7 @@ local function drawRSSI()
   end
   -- Draw the corresponding picture
   lcd.drawPixmap(grid_limit_right+2, 2, "/SCRIPTS/BMP/RSSI" .. file .. ".bmp")
-  -- Display durrent RSSI value
+  -- Display current RSSI value
   lcd.drawText(190, 45, round(rssi, 4), DBLSIZE)
 end
 
@@ -118,11 +127,11 @@ local function cell_1()
   local f_mode = "UNKN"
   local fm = getValue(SW_FMODE)
 	if fm < -1000 then
-		f_mode = "ACRO"
+		f_mode = "RATE"
 	elseif (-10 < fm and fm < 10) then
-		f_mode = "HRZN"
+		f_mode = "AIR"
 	elseif fm > 1000 then
-	    f_mode = "ANGL"
+	    f_mode = "HRZN"
 	end
   lcd.drawText(x1 + 26, y1 + 4, f_mode, DBLSIZE)
 end
@@ -133,31 +142,32 @@ local function cell_2()
   local y1 = min_y + header_height + cell_height - 1
 
   local armed = getValue(SW_ARM)  -- arm / airmode
+  local turtle = getValue(SW_TURT) -- turtlemode
   local failsafe = getValue(SW_FS)  -- failsafe
   local bbox = getValue(SW_BBOX)  -- blackbox
-  local beepr = getValue(SW_BEEPR)  -- blackbox
+  local beepr = getValue(SW_BEEPR)  -- beeper
 
-  if (armed < 10 and failsafe < 0) then
+  if (armed > -10 and failsafe < 100) then
     lcd.drawPixmap(x1 + 4, y1 + 1, "/SCRIPTS/BMP/armed.bmp")
-  elseif (failsafe < 0) then
+  elseif (failsafe < 100) then
     lcd.drawPixmap(x1 + 4, y1 + 1, "/SCRIPTS/BMP/armed_no.bmp")
   end
-
-  if (armed < -10 and failsafe < 0) then
-    lcd.drawPixmap(x1 + 40, y1 + 1, "/SCRIPTS/BMP/airmd.bmp")
-  elseif (failsafe < 0) then
-    lcd.drawPixmap(x1 + 40, y1 + 1, "/SCRIPTS/BMP/airmd_no.bmp")
+  
+    if (turtle > -10 and failsafe < 100) then
+    lcd.drawPixmap(x1 + 40, y1 + 1, "/SCRIPTS/BMP/turtl.bmp")
+  elseif (failsafe < 100) then
+    lcd.drawPixmap(x1 + 40, y1 + 1, "/SCRIPTS/BMP/turtl_no.bmp")
   end
   
-  if (bbox < -10 and failsafe < 0) then
+  if (bbox < -10 and failsafe < 100) then
     lcd.drawPixmap(x1 + 4, y1 + 11, "/SCRIPTS/BMP/blkbox.bmp")
-  elseif (failsafe < 0) then
+  elseif (failsafe < 100) then
     lcd.drawPixmap(x1 + 4, y1 + 11, "/SCRIPTS/BMP/blkbox_no.bmp")
   end
 
-  if (beepr < -10 and failsafe < 0) then
+  if (beepr > -10 and failsafe < 100) then
     lcd.drawPixmap(x1 + 40, y1 + 11, "/SCRIPTS/BMP/beepr.bmp")
-  elseif (failsafe < 0) then
+  elseif (failsafe < 100) then
     lcd.drawPixmap(x1 + 40, y1 + 11, "/SCRIPTS/BMP/beepr_no.bmp")
   end
 
@@ -167,13 +177,13 @@ local function cell_2()
   end
 end
 
--- Bottom Left cell -- Cell cound and RSSI- and Cell Vmin
+-- Bottom Left cell -- Cell count and RSSI- and Cell Vmin
 local function cell_3()
   local x1 = grid_limit_left + 1
   local y1 = min_y + header_height + cell_height * 2
 
   local rssi_min = getValue(DS_RSSI_MIN)
-  local cell_min = getValue(DS_CELL_MIN)
+  local cell_min = round(getValue(DS_CELL_MIN), 2)
 
   lcd.drawPixmap(x1 + 22, y1 + 1, "/SCRIPTS/BMP/rssi_min.bmp")
   lcd.drawText(x1 + 53, y1 + 3, rssi_min .. "dB", SMLSIZE)
@@ -184,11 +194,28 @@ end
 
 -- Top Right cell -- Current time
 local function cell_4() 
-  local x1 = grid_middle + 1
-  local y1 = min_y + header_height + 1
+ local x1 = grid_middle + 2
+ local y1 = min_y + header_height + 0
 
-  local datenow = getDateTime()
-  lcd.drawText(x1 + 3, y1 + 2, datenow.hour .. ":" .. datenow.min .. ":" .. datenow.sec, DBLSIZE)
+ local currdate = getDateTime()
+ 
+ if currdate.hour < 10 then
+   hour = "0"..currdate.hour
+ else
+   hour = currdate.hour
+ end
+ if currdate.min < 10 then
+   mins = "0"..currdate.min
+ else
+   mins = currdate.min
+ end
+ if currdate.sec < 10 then
+   secs = "0"..currdate.sec
+ else
+   secs = currdate.sec
+ end
+
+ lcd.drawText(x1 + 3, y1 + 2, hour .. ":" .. mins .. ":" .. secs, DBLSIZE)
 end
 
 -- Center right cell -- Timer1
@@ -206,19 +233,14 @@ local function cell_5()
   lcd.drawText(x1 + 20, y1 + 2, time, MIDSIZE)
 end
 
--- Bottom right cell -- Timer2
+-- Bottom right cell -- Milliamp hours
 local function cell_6() 
   local x1 = grid_middle + 1
   local y1 = min_y + header_height + cell_height * 2 + 1
+  
+  local mah_used = getValue(DS_FUEL)
 
-  -- Picture
-  lcd.drawPixmap(x1 + 2, y1 + 1, "/SCRIPTS/BMP/t2.bmp")
-
-  -- Show timer
-  timer = model.getTimer(1)
-  s = timer.value
-  time = string.format("%.2d:%.2d:%.2d", s/(60*60), s/60%60, s%60)
-  lcd.drawText(x1 + 20, y1 + 3, time, MIDSIZE)
+  lcd.drawText(x1 + 2, y1 + 2, mah_used .. "mAh", DBLSIZE)
 end
 
 -- Execute
